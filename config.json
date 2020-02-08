@@ -1,0 +1,1 @@
+{"twitter":{"enabled":true,"consumerKey":"Twitter Consumer API key","consumerSecret":"Twitter Consumer API Secret key","accessToken":"Twitter Access Token","accessSecret":"Twitter Secret Access Token"},"telegram":{"enabled":true,"token":"Telegram Bot Token","channel":"Telegram Channel"}}
