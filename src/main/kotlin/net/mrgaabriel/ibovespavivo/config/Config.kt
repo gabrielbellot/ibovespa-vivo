@@ -1,7 +1,8 @@
 package net.mrgaabriel.ibovespavivo.config
 
 class Config(val twitter: TwitterConfig = TwitterConfig(),
-             val telegram: TelegramConfig = TelegramConfig()
+             val telegram: TelegramConfig = TelegramConfig(),
+             val apiKey: String = "API Key (alphavantage.co)"
 )
 
 class TwitterConfig(

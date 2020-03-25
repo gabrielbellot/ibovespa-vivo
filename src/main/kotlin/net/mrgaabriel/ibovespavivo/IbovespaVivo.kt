@@ -2,18 +2,22 @@ package net.mrgaabriel.ibovespavivo
 
 import com.github.kevinsawicki.http.HttpRequest
 import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.pengrad.telegrambot.TelegramBot
 import com.pengrad.telegrambot.request.SendMessage
 import mu.KotlinLogging
 import net.mrgaabriel.ibovespavivo.config.Config
 import net.mrgaabriel.ibovespavivo.utils.url
-import org.jsoup.Jsoup
 import twitter4j.Twitter
 import twitter4j.TwitterFactory
 import twitter4j.conf.ConfigurationBuilder
 import java.io.File
+import java.text.DecimalFormat
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+
 
 object IbovespaVivo {
 
@@ -58,24 +62,12 @@ object IbovespaVivo {
             null
 
         while (true) {
-            val request = HttpRequest.get("https://br.investing.com/indices/bovespa")
-                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.54 Safari/537.36")
+            val quote = getQuote()
 
-            if (!request.ok())
-                throw RuntimeException()
+            logger.info { "Rate: ${quote.price}" }
+            logger.info { "É diferente de $lastRate? ${lastRate != quote.price}" }
 
-            val jsoup = Jsoup.parse(request.body())
-
-            val price = jsoup.selectFirst("#last_last").text().replace(".", "").replace(",", ".").toDouble()
-
-            // Another gambiarra:tm:
-            val summary = jsoup.selectFirst("#quotes_summary_current_data > div.left > div.inlineblock > div.top.bold.inlineblock")
-            val percentage = summary.getElementsByTag("span")[3].text()
-
-            logger.info { "Rate: $price" }
-            logger.info { "É diferente de $lastRate? ${lastRate != price}" }
-
-            if (lastRate == price) {
+            if (lastRate == quote.price) {
                 Thread.sleep(3 * 60 * 1000)
                 continue
             }
@@ -85,7 +77,7 @@ object IbovespaVivo {
             val now = OffsetDateTime.now()
             val timestamp = now.format(DateTimeFormatter.ofPattern("HH:mm"))
 
-            val msg = "${if (price > lastRate) "↗" else "↘"} $price pontos ($percentage) - ás $timestamp"
+            val msg = "${if (quote.price > lastRate) "↗" else "↘"} ${quote.price} pontos (${quote.changePercent}%) - ás $timestamp"
 
             twitter?.updateStatus(msg)?.also {
                 logger.info { "Postado no Twitter! ${it.url()}" }
@@ -95,7 +87,7 @@ object IbovespaVivo {
                 logger.info { "Enviado no Telegram!" }
             }
 
-            lastRate = price
+            lastRate = quote.price
 
             Thread.sleep(3 * 60 * 1000)
         }
@@ -124,4 +116,44 @@ object IbovespaVivo {
             null
         }
     }
+
+    fun getQuote(): Quote {
+        val request = HttpRequest.get("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^BVSP&apikey=${config.apiKey}")
+            .acceptJson()
+
+        // boom headshot
+        if (!request.ok()) {
+            throw RuntimeException("Request is not OK!")
+        }
+
+        val payload = JsonParser().parse(request.body()).asJsonObject
+
+        return Quote(payload)
+    }
+}
+
+// Com base no endpoint QUOTE da API alphavantage.co
+class Quote(
+    payload: JsonObject
+) {
+
+    val globalQuote = payload["Global Quote"].asJsonObject
+
+    val symbol = globalQuote["01. symbol"].asString
+    val open = limitDecimal(globalQuote["02. open"].asDouble)
+    val high = limitDecimal(globalQuote["03. high"].asDouble)
+    val low = limitDecimal(globalQuote["04. low"].asDouble)
+    val price = limitDecimal(globalQuote["05. price"].asDouble)
+    val volume = globalQuote["06. volume"].asBigInteger
+    val latestTradingDay = try { LocalDate.parse(globalQuote["07. latest trading day"].asString) } catch (e: Exception) {/* whatever */}
+    val previousClose = limitDecimal(globalQuote["08. previous close"].asDouble)
+    val change = limitDecimal(globalQuote["09. change"].asDouble)
+
+    // vem com um símbolo de %, então considerar como string, remover o símbolo e converter para double
+    val changePercent = limitDecimal(globalQuote["10. change percent"].asString.replace("%", "").toDouble())
+
+    private fun limitDecimal(double: Double): Double {
+        return DecimalFormat("0.00").format(double).replace(",", ".").toDouble()
+    }
+
 }
