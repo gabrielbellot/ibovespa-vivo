@@ -17,6 +17,7 @@ import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.math.absoluteValue
 
 
 object IbovespaVivo {
@@ -63,11 +64,24 @@ object IbovespaVivo {
 
         while (true) {
             val quote = getQuote()
+            val today = LocalDate.now()
 
+            if (quote.latestTradingDay != today) {
+                Thread.sleep(3 * 60 * 1000)
+                continue
+            }
+            
             logger.info { "Rate: ${quote.price}" }
             logger.info { "É diferente de $lastRate? ${lastRate != quote.price}" }
 
             if (lastRate == quote.price) {
+                Thread.sleep(3 * 60 * 1000)
+                continue
+            }
+
+            logger.info { "A diferença é maior que 2 pontos? ${(quote.price - lastRate).absoluteValue > 2}" }
+
+            if ((quote.price - lastRate).absoluteValue > 2) {
                 Thread.sleep(3 * 60 * 1000)
                 continue
             }
@@ -77,7 +91,7 @@ object IbovespaVivo {
             val now = OffsetDateTime.now()
             val timestamp = now.format(DateTimeFormatter.ofPattern("HH:mm"))
 
-            val msg = "${if (quote.price > lastRate) "↗" else "↘"} ${quote.price} pontos (${quote.changePercent}%) - ás $timestamp"
+            val msg = "${if (quote.price > quote.open) "\uD83D\uDCC8" else "\uD83D\uDCC9"} ${quote.price} pontos (${quote.changePercent}%) - ás $timestamp"
 
             twitter?.updateStatus(msg)?.also {
                 logger.info { "Postado no Twitter! ${it.url()}" }
