@@ -16,6 +16,7 @@ import java.io.File
 import java.text.DecimalFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.concurrent.thread
@@ -69,12 +70,12 @@ object IbovespaVivo {
             while (true) {
                 val now = OffsetDateTime.now()
 
-                val quote = getQuote()
-
                 // Abertura da Bovespa
                 if (now.hour == 10 && now.minute == 0 && now.second == 0) {
                     if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY)
                         continue
+
+                    val quote = getQuote()
 
                     logger.info { "Mandando mensagens de abertura da bolsa..." }
 
@@ -102,6 +103,8 @@ object IbovespaVivo {
                     if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY)
                         continue
 
+                    val quote = getQuote()
+
                     logger.info { "Mandando mensagens de fechamento da bolsa..." }
 
                     val msg = """
@@ -126,14 +129,21 @@ object IbovespaVivo {
         }
 
         thread {
-            while (true) {
-                val quote = getQuote()
-                val today = LocalDate.now()
+            val now = OffsetDateTime.now()
+            val time = LocalTime.now()
 
-                if (quote.latestTradingDay != today) {
+            while (true) {
+                if (time.isBefore(LocalTime.parse("10:00"))
+                    || time.isAfter(LocalTime.parse("18:30"))
+                    || now.dayOfWeek == DayOfWeek.SATURDAY
+                    || now.dayOfWeek == DayOfWeek.SUNDAY) {
+                    logger.info { "Não conferindo pois não é horário de trade!" }
+
                     Thread.sleep(3 * 60 * 1000)
                     continue
                 }
+
+                val quote = getQuote()
 
                 logger.info { "Rate: ${quote.price}" }
                 logger.info { "É diferente de $lastRate? ${lastRate != quote.price}" }
@@ -145,18 +155,18 @@ object IbovespaVivo {
 
                 logger.info { "A diferença é maior que 2 pontos? ${(quote.price - lastRate).absoluteValue > 2}" }
 
-                if ((quote.price - lastRate).absoluteValue > 2) {
+                if ((quote.price - lastRate).absoluteValue < 2) {
                     Thread.sleep(3 * 60 * 1000)
                     continue
                 }
 
                 logger.info { "Atualizando status!" }
-
-                val now = OffsetDateTime.now()
                 val timestamp = now.format(DateTimeFormatter.ofPattern("HH:mm"))
+
 
                 val msg =
                     "${if (quote.price > quote.open) "\uD83D\uDCC8" else "\uD83D\uDCC9"} ${quote.price} pontos (${quote.changePercent}%) - ás $timestamp"
+
 
                 twitter?.updateStatus(msg)?.also {
                     logger.info { "Postado no Twitter! ${it.url()}" }
@@ -201,12 +211,20 @@ object IbovespaVivo {
         val request = HttpRequest.get("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^BVSP&apikey=${config.apiKey}")
             .acceptJson()
 
+        val body = request.body()
+
+        // debug
+        logger.info { "Request to API" }
+        logger.info { "OK           : ${request.ok()}" }
+        logger.info { "Request code : ${request.code()}" }
+        logger.info { body.replace("\n", "") }
+
         // boom headshot
         if (!request.ok()) {
             throw RuntimeException("Request is not OK!")
         }
 
-        val payload = JsonParser().parse(request.body()).asJsonObject
+        val payload = JsonParser().parse(body).asJsonObject
 
         return Quote(payload)
     }
