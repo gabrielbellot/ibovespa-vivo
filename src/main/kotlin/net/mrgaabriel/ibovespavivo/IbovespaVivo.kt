@@ -129,10 +129,10 @@ object IbovespaVivo {
         }
 
         thread {
-            val now = OffsetDateTime.now()
-            val time = LocalTime.now()
-
             while (true) {
+                val now = OffsetDateTime.now()
+                val time = LocalTime.now()
+                
                 if (time.isBefore(LocalTime.parse("10:00"))
                     || time.isAfter(LocalTime.parse("18:30"))
                     || now.dayOfWeek == DayOfWeek.SATURDAY
