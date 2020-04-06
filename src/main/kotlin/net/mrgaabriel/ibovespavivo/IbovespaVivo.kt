@@ -99,7 +99,7 @@ object IbovespaVivo {
                 }
 
                 // Fechamento da Bovespa
-                if (now.hour == 18 && now.minute == 30 && now.second == 0) {
+                if (now.hour == 17 && now.minute == 30 && now.second == 0) {
                     if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY)
                         continue
 
@@ -134,7 +134,7 @@ object IbovespaVivo {
                 val time = LocalTime.now()
                 
                 if (time.isBefore(LocalTime.parse("10:00"))
-                    || time.isAfter(LocalTime.parse("18:30"))
+                    || time.isAfter(LocalTime.parse("17:30"))
                     || now.dayOfWeek == DayOfWeek.SATURDAY
                     || now.dayOfWeek == DayOfWeek.SUNDAY) {
                     logger.info { "Não conferindo pois não é horário de trade!" }
