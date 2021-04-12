@@ -6,9 +6,6 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.pengrad.telegrambot.TelegramBot
 import com.pengrad.telegrambot.request.SendMessage
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import net.mrgaabriel.ibovespavivo.config.Config
 import net.mrgaabriel.ibovespavivo.utils.url
@@ -17,7 +14,10 @@ import twitter4j.TwitterFactory
 import twitter4j.conf.ConfigurationBuilder
 import java.io.File
 import java.text.DecimalFormat
-import java.time.*
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.concurrent.thread
 import kotlin.math.absoluteValue
@@ -66,7 +66,7 @@ object IbovespaVivo {
         else
             null
 
-        GlobalScope.launch {
+        thread {
             while (true) {
                 val now = OffsetDateTime.now()
 
@@ -94,7 +94,7 @@ object IbovespaVivo {
                         logger.info { "Enviado no Telegram!" }
                     }
 
-                    delay(1000)
+                    Thread.sleep(1000)
                     continue
                 }
 
@@ -122,27 +122,24 @@ object IbovespaVivo {
                         logger.info { "Enviado no Telegram!" }
                     }
 
-                    delay(1000)
+                    Thread.sleep(1000)
                     continue
                 }
-
-                delay(1000)
             }
         }
 
-        GlobalScope.launch { 
+        thread {
             while (true) {
-                val dateTime = OffsetDateTime.now()
-                val time = dateTime.toLocalTime()
-
+                val now = OffsetDateTime.now()
+                val time = LocalTime.now()
+                
                 if (time.isBefore(LocalTime.parse("10:00"))
                     || time.isAfter(LocalTime.parse("17:30"))
-                    || dateTime.dayOfWeek == DayOfWeek.SATURDAY
-                    || dateTime.dayOfWeek == DayOfWeek.SUNDAY) {
+                    || now.dayOfWeek == DayOfWeek.SATURDAY
+                    || now.dayOfWeek == DayOfWeek.SUNDAY) {
                     logger.info { "Não conferindo pois não é horário de trade!" }
 
-                    delay(3 * 60 * 1000)
-
+                    Thread.sleep(3 * 60 * 1000)
                     continue
                 }
 
@@ -152,19 +149,20 @@ object IbovespaVivo {
                 logger.info { "É diferente de $lastRate? ${lastRate != quote.price}" }
 
                 if (lastRate == quote.price) {
-                    delay(3 * 60 * 1000)
+                    Thread.sleep(3 * 60 * 1000)
                     continue
                 }
 
                 logger.info { "A diferença é maior que 2 pontos? ${(quote.price - lastRate).absoluteValue > 2}" }
 
                 if ((quote.price - lastRate).absoluteValue < 2) {
-                    delay(3 * 60 * 1000)
+                    Thread.sleep(3 * 60 * 1000)
                     continue
                 }
 
                 logger.info { "Atualizando status!" }
-                val timestamp = time.format(DateTimeFormatter.ofPattern("HH:mm"))
+                val timestamp = now.format(DateTimeFormatter.ofPattern("HH:mm"))
+
 
                 val msg =
                     "${if (quote.price > quote.open) "\uD83D\uDCC8" else "\uD83D\uDCC9"} ${quote.price} pontos (${quote.changePercent}%) - ás $timestamp"
@@ -180,7 +178,7 @@ object IbovespaVivo {
 
                 lastRate = quote.price
 
-                delay(3 * 60 * 1000) // três minutos
+                Thread.sleep(3 * 60 * 1000)
             }
         }
     }
