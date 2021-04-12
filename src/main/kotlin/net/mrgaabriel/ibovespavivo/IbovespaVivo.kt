@@ -208,7 +208,8 @@ object IbovespaVivo {
     }
 
     fun getQuote(): Quote {
-        val request = HttpRequest.get("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^BVSP&apikey=${config.apiKey}")
+        // TODO fazer isso aí configurável para evitar problemas
+        val request = HttpRequest.get("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=IBOV.SAO&apikey=${config.apiKey}")
             .acceptJson()
 
         val body = request.body()
